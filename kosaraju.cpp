@@ -1,157 +1,140 @@
-#include <fstream>
 #include <iostream>
-#include <stack>
-#include <unordered_set>
+#include <fstream>
 #include <vector>
+#include <stack>
+#include <algorithm>
 
-using std::cout;
-using std::cerr;
-using std::endl;
-using std::ofstream;
-using std::string;
-using std::vector;
-using std::stack;
-using std::unordered_set;
-using std::ifstream;
+using namespace std;
 
-// Classe para representar o grafo
 class Graph {
- public:
-  Graph(int V) : V_(V), adj_(V), adjTranspose_(V) {}
+    int V;
+    vector<vector<int>> adj;
+    vector<vector<int>> adjTranspose;
 
-  void addEdge(int u, int v) {
-    adj_[u].push_back(v);
-    adjTranspose_[v].push_back(u);
-  }
+public:
+    Graph(int V) : V(V), adj(V), adjTranspose(V) {}
 
-  // Função auxiliar para preencher a ordem de visitação
-  void fillOrder(int v, unordered_set<int>& visited, stack<int>& Stack) {
-    visited.insert(v);
-    for (int i : adj_[v]) {
-      if (!visited.count(i)) {
-        fillOrder(i, visited, Stack);
-      }
+    void addEdge(int u, int v) {
+        adj[u].push_back(v);
+        adjTranspose[v].push_back(u);
     }
-    Stack.push(v);
-  }
 
-  // Função utilitária de busca em profundidade
-  void DFSUtil(int v, unordered_set<int>& visited) {
-    visited.insert(v);
-    cout << v << " ";
-    for (int i : adjTranspose_[v]) {
-      if (!visited.count(i)) {
-        DFSUtil(i, visited);
-      }
+    void dfs(int v, vector<bool>& visited, stack<int>& Stack) {
+        visited[v] = true;
+        for (int u : adj[v]) {
+            if (!visited[u])
+                dfs(u, visited, Stack);
+        }
+        Stack.push(v);
     }
-  }
 
-  // Imprimir as componentes fortemente conectadas
-  void printSCCs() {
-    stack<int> Stack;
-    unordered_set<int> visited;
-    for (int i = 0; i < V_; i++) {
-      if (!visited.count(i)) {
-        fillOrder(i, visited, Stack);
-      }
+    void dfsTranspose(int v, vector<bool>& visited, vector<int>& component) {
+        visited[v] = true;
+        component.push_back(v);
+        for (int u : adjTranspose[v]) {
+            if (!visited[u])
+                dfsTranspose(u, visited, component);
+        }
     }
-    swap(adj_, adjTranspose_);
-    visited.clear(); // Limpar o conjunto de visitados
-    int numSCCs = 0;
-    while (!Stack.empty()) {
-      int v = Stack.top();
-      Stack.pop();
-      if (!visited.count(v)) {
-        cout << "SCC #" << ++numSCCs << ": ";
-        DFSUtil(v, visited);
-        cout << endl;
-      }
-    }
-  }
 
-  // Função para adicionar arestas a partir de um arquivo
-  void addEdgesFromFile(const string& filename) {
-    ifstream file(filename);
-    if (!file) {
-      cerr << "Erro ao abrir o arquivo: " << filename << endl;
-      exit(1);
-    }
-    int u, v;
-    while (file >> u >> v) {
-      V_ = std::max(V_, std::max(u, v) + 1); // Atualiza o tamanho do grafo
-      addEdge(u, v);
-    }
-    file.close();
-  }
+    vector<vector<int>> kosaraju() {
+        vector<bool> visited(V, false);
+        stack<int> Stack;
 
- private:
-  int V_;
-  vector<vector<int>> adj_;
-  vector<vector<int>> adjTranspose_;
+        // Passo 1: DFS para preencher a pilha na ordem correta
+        for (int i = 0; i < V; ++i) {
+            if (!visited[i])
+                dfs(i, visited, Stack);
+        }
+
+        // Passo 2: Inverter as arestas do grafo
+        reverseEdges();
+
+        // Passo 3: DFS no grafo transposto e encontrar componentes fortemente conexas
+        fill(visited.begin(), visited.end(), false);
+        vector<vector<int>> SCCs;
+        while (!Stack.empty()) {
+            int v = Stack.top();
+            Stack.pop();
+            if (!visited[v]) {
+                vector<int> component;
+                dfsTranspose(v, visited, component);
+                SCCs.push_back(component);
+            }
+        }
+        return SCCs;
+    }
+
+    void reverseEdges() {
+        adjTranspose.clear();
+        adjTranspose.resize(V);
+        for (int v = 0; v < V; ++v) {
+            for (int u : adj[v]) {
+                adjTranspose[u].push_back(v);
+            }
+        }
+    }
 };
 
-// Função para imprimir o menu de ajuda
-void printHelp() {
-  cout << "Uso: ./kosaraju [opções] -f <arquivo>" << endl;
-  cout << endl;
-  cout << "Opções:" << endl;
-  cout << "  -h : Mostra este menu de ajuda." << endl;
-  cout << "  -o <arquivo> : Redireciona a saída para o arquivo especificado." << endl;
-  cout << "  -f <arquivo> : Indica o arquivo que contém o grafo de entrada." << endl;
+int main(int argc, char *argv[]) {
+    if (argc <= 1) {
+        cout << "Uso: " << argv[0] << " -f <arquivo>" << endl;
+        return 1;
+    }
+
+    string filename;
+    for (int i = 1; i < argc; ++i) {
+        if (string(argv[i]) == "-f" && i + 1 < argc) {
+            filename = argv[i + 1];
+        } else if (string(argv[i]) == "-h") {
+            cout << "Componentes fortemente conexas\n"
+                    "Para o problema de componentes fortemente conexos o algoritmo de kosaraju deve possuir os seguintes parâmetros:\n"
+                    "-h : mostra o help\n"
+                    "-o <arquivo> : redireciona a saida para o ‘‘arquivo’’\n"
+                    "-f <arquivo> : indica o ‘‘arquivo’’ que contém o grafo de entrada\n"
+                    "$ ./kosaraju -f arquivo-entrada.dat" << endl;
+            return 0;
+        }
+    }
+
+    if (filename.empty()) {
+        cout << "Uso: " << argv[0] << " -f <arquivo>" << endl;
+        return 1;
+    }
+
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cout << "Erro ao abrir o arquivo " << filename << endl;
+        return 1;
+    }
+
+    int V, E;
+    file >> V >> E;
+    cout << "Vertices: " << V << ", Arestas: " << E << endl;
+
+    Graph graph(V);
+
+    for (int i = 0; i < E; ++i) {
+    int u, v;
+    file >> u >> v;
+    cout << "Adicionando aresta: " << u << " -> " << v << endl;
+    graph.addEdge(u - 1, v - 1); // Ajuste para 0-indexação
 }
 
-// Função principal
-int main(int argc, char* argv[]) {
-  string inputFile = "";
-  string outputFile = "";
 
-  // Processamento de argumentos de linha de comando
-  for (int i = 1; i < argc; i++) {
-    string arg = argv[i];
-    if (arg == "-h") {
-      printHelp();
-      return 0;
-    } else if (arg == "-o") {
-      if (i + 1 < argc) {
-        outputFile = argv[i + 1];
-        i++;
-      } else {
-        cerr << "Erro: Opção -o requer um nome de arquivo." << endl;
-        return 1;
-      }
-    } else if (arg == "-f") {
-      if (i + 1 < argc) {
-        inputFile = argv[i + 1];
-        i++;
-      } else {
-        cerr << "Erro: Opção -f requer um nome de arquivo." << endl;
-        return 1;
-      }
-    } else {
-      cerr << "Erro: Opção inválida: " << arg << endl;
-      return 1;
+    file.close();
+
+    // Encontrar componentes fortemente conexas
+    vector<vector<int>> SCCs = graph.kosaraju();
+
+    // Imprimir componentes fortemente conexas
+    for (const auto& SCC : SCCs) {
+        for (int i = 0; i < SCC.size(); ++i) {
+            cout << SCC[i] + 1;
+            if (i < SCC.size() - 1) cout << " ";
+        }
+        cout << endl;
     }
-  }
 
-  if (inputFile.empty()) {
-    cerr << "Erro: Arquivo de entrada não especificado." << endl;
-    return 1;
-  }
-
-  // Redirecionar a saída para o arquivo especificado, se fornecido
-  if (!outputFile.empty()) {
-    ofstream out(outputFile);
-    if (!out) {
-      cerr << "Erro ao abrir o arquivo de saída: " << outputFile << endl;
-      return 1;
-    }
-    cout.rdbuf(out.rdbuf());
-  }
-
-  // Criar o objeto Graph e ler o grafo do arquivo
-  Graph graph(0); // Tamanho do grafo será ajustado dinamicamente
-  graph.addEdgesFromFile(inputFile);
-  graph.printSCCs();
-cout << "final!" << endl;
-  return 0;
+    return 0;
 }
